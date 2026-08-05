@@ -42,12 +42,20 @@ things, and `netlify/functions/api.mjs` decides whether the caller is allowed.
 | Transport / browser | HTTPS via Netlify, plus CSP, `X-Frame-Options: DENY`, `nosniff`, HSTS and a locked-down `Permissions-Policy` (see `netlify.toml`). |
 | Data store | **Netlify Blobs** — reachable only from inside a function. There is no public URL to leak. |
 
-Run the security test suite (37 checks including forged tokens, privilege escalation and
-score tampering):
+### Verifying it yourself
+
+Two commands, any time — don't take anyone's word for it:
 
 ```bash
-node netlify/functions/../../scripts/apitest.mjs   # see scripts/
+npm run test:security                              # 37 checks against the API code
+npm run audit -- https://your-site.netlify.app     # audits the LIVE deployed site
 ```
+
+`test:security` covers forged tokens, privilege escalation and score tampering.
+`audit` is read-only (creates nothing) and checks the real deployment: security headers,
+that no database URL or secret reached the browser bundle, that cabinet data rejects
+anonymous and forged requests, that nobody can create a second president, that server
+files aren't downloadable, and that the old Firebase database is locked.
 
 ### What is still *not* guaranteed
 
