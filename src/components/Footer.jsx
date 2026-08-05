@@ -32,7 +32,7 @@ export default function Footer() {
         }}
       >
         <span className="mono" style={{ fontSize: '0.72rem', color: 'var(--muted)', letterSpacing: '0.1em' }}>
-          THE_STACK © {new Date().getFullYear()} · BUILT WITH TOO MUCH COFFEE
+          WHITNEY CS CLUB © {new Date().getFullYear()} · BUILT WITH TOO MUCH COFFEE
         </span>
         <span className="mono" style={{ fontSize: '0.72rem', color: 'var(--muted)', letterSpacing: '0.1em' }}>
           UNIT-01 IS LISTENING <span style={{ color: 'var(--red)' }}>●</span>

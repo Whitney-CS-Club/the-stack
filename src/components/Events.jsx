@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { storeGet } from '../lib/storage.js';
+import { api } from '../lib/api.js';
 import { Reveal, WordReveal } from './Reveal.jsx';
 
 function formatEventDate(dateStr) {
@@ -14,7 +14,9 @@ export default function Events() {
 
   useEffect(() => {
     let live = true;
-    storeGet('club-events').then((ev) => { if (live) setEvents(ev || []); });
+    api.publicData()
+      .then((data) => { if (live) setEvents(data.events || []); })
+      .catch(() => { if (live) setEvents([]); });
     return () => { live = false; };
   }, []);
 

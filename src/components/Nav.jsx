@@ -41,7 +41,7 @@ export default function Nav() {
               transition={{ repeat: Infinity, duration: 1.1, times: [0, 0.5, 0.5, 1] }}
               style={{ width: 8, height: 8, background: 'var(--green)', display: 'inline-block' }}
             />
-            Whitney HS
+            Whitney CS Club
           </a>
 
           <div className="nav-desktop" style={{ display: 'flex', alignItems: 'center', gap: 34 }}>

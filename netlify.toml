@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+# Security headers live in public/_headers so they ship with the built site
+# (and don't block Vite's dev-mode inline preamble during `netlify dev`).
+
+# SPA fallback — must come after the function route (declared in api.mjs config).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

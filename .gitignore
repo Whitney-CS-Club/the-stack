@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# local data store (dev fallback)
+.data
+.netlify
+deno.lock

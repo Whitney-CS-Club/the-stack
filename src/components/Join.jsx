@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { storeGet, storeSet, uid } from '../lib/storage.js';
+import { api } from '../lib/api.js';
 import { useToast } from './Toaster.jsx';
 import { Reveal, WordReveal } from './Reveal.jsx';
 
@@ -20,25 +20,21 @@ export default function Join() {
     setBusy(true);
     const form = e.target;
     const name = form.name.value.trim();
-    const entry = {
-      id: uid(),
-      name,
-      email: form.email.value.trim(),
-      year: form.year.value,
-      interests: picked,
-      submittedAt: new Date().toISOString(),
-    };
-    const requests = (await storeGet('club-join-requests')) || [];
-    requests.push(entry);
-    const ok = await storeSet('club-join-requests', requests);
-    setBusy(false);
-    setMsg(ok
-      ? { type: 'ok', text: `> welcome aboard, ${name.split(' ')[0]}. keep an eye on your inbox.` }
-      : { type: 'err', text: '> something went wrong — try again in a moment.' });
-    if (ok) {
+    try {
+      await api.join({
+        name,
+        email: form.email.value.trim(),
+        year: form.year.value,
+        interests: picked,
+      });
+      setMsg({ type: 'ok', text: `> welcome aboard, ${name.split(' ')[0]}. keep an eye on your inbox.` });
       form.reset();
       setPicked([]);
       toast(`Welcome, ${name.split(' ')[0]} — application received`);
+    } catch (err) {
+      setMsg({ type: 'err', text: `> ${err.message}` });
+    } finally {
+      setBusy(false);
     }
   };
 

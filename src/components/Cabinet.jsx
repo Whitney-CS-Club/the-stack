@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { storeGet, storeSet, uid, hasFirebase } from '../lib/storage.js';
+import { api } from '../lib/api.js';
 import { useToast } from './Toaster.jsx';
 import { Reveal, WordReveal } from './Reveal.jsx';
 
@@ -20,19 +20,17 @@ function Bootstrap({ onDone }) {
   const [msg, setMsg] = useState(null);
   const submit = async (e) => {
     e.preventDefault();
-    const newMember = {
-      id: uid(),
-      name: e.target.name.value.trim(),
-      username: e.target.user.value.trim().toLowerCase(),
-      password: e.target.pass.value,
-      position: 'President',
-      role: 'president',
-    };
-    const members = (await storeGet('club-members')) || [];
-    members.push(newMember);
-    const ok = await storeSet('club-members', members);
-    setMsg(ok ? { type: 'ok', text: '> president account created. signing you in…' } : { type: 'err', text: '> setup failed, try again.' });
-    if (ok) setTimeout(() => onDone(newMember), 600);
+    try {
+      const me = await api.cabinetBootstrap({
+        name: e.target.name.value.trim(),
+        username: e.target.user.value.trim().toLowerCase(),
+        password: e.target.pass.value,
+      });
+      setMsg({ type: 'ok', text: '> president account created. signing you in…' });
+      setTimeout(() => onDone(me), 500);
+    } catch (err) {
+      setMsg({ type: 'err', text: `> ${err.message.toLowerCase()}` });
+    }
   };
   return (
     <div className="panel brackets" style={{ maxWidth: 460, margin: '0 auto' }}>
@@ -44,12 +42,12 @@ function Bootstrap({ onDone }) {
       <form onSubmit={submit}>
         <div className="field"><label>Full name</label><input name="name" required placeholder="Grace Hopper" /></div>
         <div className="field"><label>Username</label><input name="user" required placeholder="ghopper" /></div>
-        <div className="field"><label>Password</label><input name="pass" type="password" required /></div>
+        <div className="field"><label>Password</label><input name="pass" type="password" autoComplete="new-password" minLength={8} required /></div>
         <button className="btn primary" style={{ width: '100%', justifyContent: 'center' }}>Create president</button>
       </form>
       {msg && <div className={`form-msg ${msg.type}`}>{msg.text}</div>}
       <p className="mono" style={{ fontSize: '0.66rem', color: 'var(--muted)', marginTop: 14 }}>
-        Not a real security system... skip the password you use for email.
+        8+ characters, and please don't reuse a password from anywhere else.
       </p>
     </div>
   );
@@ -59,21 +57,24 @@ function Login({ onLogin, onNeedsPassword }) {
   const [msg, setMsg] = useState(null);
   const submit = async (e) => {
     e.preventDefault();
-    const username = e.target.user.value.trim().toLowerCase();
-    const password = e.target.pass.value;
-    const members = (await storeGet('club-members')) || [];
-    const match = members.find((m) => m.username.toLowerCase() === username && m.password === password);
-    if (match && match.mustSetPassword) onNeedsPassword(match);
-    else if (match) onLogin(match);
-    else setMsg({ type: 'err', text: '> invalid username or password.' });
+    try {
+      const data = await api.cabinetLogin({
+        username: e.target.user.value.trim().toLowerCase(),
+        password: e.target.pass.value,
+      });
+      if (data.mustSetPassword) onNeedsPassword(data.me);
+      else onLogin(data.me);
+    } catch (err) {
+      setMsg({ type: 'err', text: `> ${err.message.toLowerCase()}` });
+    }
   };
   return (
     <div className="panel brackets" style={{ maxWidth: 460, margin: '0 auto' }}>
       <i /><i /><i /><i />
       <h3 style={{ textTransform: 'uppercase', marginBottom: 20 }}>Cabinet sign in</h3>
       <form onSubmit={submit}>
-        <div className="field"><label>Username</label><input name="user" required /></div>
-        <div className="field"><label>Password</label><input name="pass" type="password" required /></div>
+        <div className="field"><label>Username</label><input name="user" autoComplete="username" required /></div>
+        <div className="field"><label>Password</label><input name="pass" type="password" autoComplete="current-password" required /></div>
         <button className="btn primary" style={{ width: '100%', justifyContent: 'center' }}>Sign in</button>
       </form>
       {msg && <div className={`form-msg ${msg.type}`}>{msg.text}</div>}
@@ -91,14 +92,13 @@ function SetPassword({ member, onDone }) {
     const p1 = e.target.p1.value;
     const p2 = e.target.p2.value;
     if (p1 !== p2) { setMsg({ type: 'err', text: "> passwords don't match." }); return; }
-    if (p1 === '1234') { setMsg({ type: 'err', text: '> choose something other than the default password.' }); return; }
-    let all = (await storeGet('club-members')) || [];
-    all = all.map((m) => (m.id === member.id ? { ...m, password: p1, mustSetPassword: false } : m));
-    const ok = await storeSet('club-members', all);
-    if (ok) {
+    try {
+      const data = await api.cabinetSetPassword(p1);
       setMsg({ type: 'ok', text: '> password set. loading your dashboard…' });
-      setTimeout(() => onDone(all.find((m) => m.id === member.id)), 500);
-    } else setMsg({ type: 'err', text: '> failed to save, try again.' });
+      setTimeout(() => onDone(data.me), 500);
+    } catch (err) {
+      setMsg({ type: 'err', text: `> ${err.message.toLowerCase()}` });
+    }
   };
   return (
     <div className="panel brackets" style={{ maxWidth: 460, margin: '0 auto' }}>
@@ -106,8 +106,8 @@ function SetPassword({ member, onDone }) {
       <h3 style={{ textTransform: 'uppercase', marginBottom: 8 }}>Hey {member.name} — pick a real password</h3>
       <p style={{ color: 'var(--muted)', fontSize: '0.88rem', marginBottom: 20 }}>You're still on the default one. Set your own and you're in.</p>
       <form onSubmit={submit}>
-        <div className="field"><label>New password</label><input name="p1" type="password" minLength={4} required /></div>
-        <div className="field"><label>Confirm password</label><input name="p2" type="password" minLength={4} required /></div>
+        <div className="field"><label>New password</label><input name="p1" type="password" autoComplete="new-password" minLength={8} required /></div>
+        <div className="field"><label>Confirm password</label><input name="p2" type="password" autoComplete="new-password" minLength={8} required /></div>
         <button className="btn primary" style={{ width: '100%', justifyContent: 'center' }}>Set password</button>
       </form>
       {msg && <div className={`form-msg ${msg.type}`}>{msg.text}</div>}
@@ -122,11 +122,13 @@ function MemberBoard({ user, tasks, reload }) {
   const cols = [['todo', 'To Do'], ['in-progress', 'In Progress'], ['done', 'Done']];
 
   const setStatus = async (id, status) => {
-    let all = (await storeGet('club-tasks')) || [];
-    all = all.map((t) => (t.id === id ? { ...t, status } : t));
-    await storeSet('club-tasks', all);
-    toast(status === 'done' ? 'Nice work — task marked done' : 'Task updated');
-    reload();
+    try {
+      await api.setTaskStatus(id, status);
+      toast(status === 'done' ? 'Nice work — task marked done' : 'Task updated');
+      reload();
+    } catch (err) {
+      toast(err.message, 'err');
+    }
   };
 
   return (
@@ -201,66 +203,77 @@ function PresidentDash({ user, members, tasks, events, reload }) {
   const assignTask = async (e) => {
     e.preventDefault();
     const f = e.target;
-    const newTask = {
-      id: uid(), title: f.title.value.trim(), description: f.desc.value.trim(),
-      assignedTo: f.assignee.value, assignedBy: user.name,
-      dueDate: f.due.value, priority: f.priority.value,
-      status: 'todo', createdAt: new Date().toISOString(),
-    };
-    const all = (await storeGet('club-tasks')) || [];
-    all.push(newTask);
-    const ok = await storeSet('club-tasks', all);
-    if (ok) { toast('Task assigned'); f.reset(); reload(); }
-    else toast('Failed to save task', 'err');
+    try {
+      await api.createTask({
+        title: f.title.value.trim(),
+        description: f.desc.value.trim(),
+        assignedTo: f.assignee.value,
+        dueDate: f.due.value,
+        priority: f.priority.value,
+      });
+      toast('Task assigned');
+      f.reset();
+      reload();
+    } catch (err) {
+      toast(err.message, 'err');
+    }
   };
 
   const addMember = async (e) => {
     e.preventDefault();
     const f = e.target;
-    const username = f.user.value.trim().toLowerCase();
-    const all = (await storeGet('club-members')) || [];
-    if (all.some((m) => m.username.toLowerCase() === username)) { toast('That username is already taken', 'err'); return; }
-    all.push({ id: uid(), name: f.name.value.trim(), position: f.position.value.trim(), username, password: '1234', mustSetPassword: true, role: 'cabinet' });
-    const ok = await storeSet('club-members', all);
-    if (ok) { toast('Member added — they log in with password 1234'); f.reset(); reload(); }
+    try {
+      await api.addMember({
+        name: f.name.value.trim(),
+        position: f.position.value.trim(),
+        username: f.user.value.trim().toLowerCase(),
+      });
+      toast('Member added — they log in with password 1234');
+      f.reset();
+      reload();
+    } catch (err) {
+      toast(err.message, 'err');
+    }
   };
 
   const removeMember = async (id) => {
-    let all = (await storeGet('club-members')) || [];
-    all = all.filter((m) => m.id !== id);
-    await storeSet('club-members', all);
-    reload();
+    try {
+      await api.removeMember(id);
+      reload();
+    } catch (err) {
+      toast(err.message, 'err');
+    }
   };
 
   const deleteTask = async (id) => {
-    let all = (await storeGet('club-tasks')) || [];
-    all = all.filter((t) => t.id !== id);
-    await storeSet('club-tasks', all);
-    reload();
+    try {
+      await api.deleteTask(id);
+      reload();
+    } catch (err) {
+      toast(err.message, 'err');
+    }
   };
 
   const saveEvent = async (e) => {
     e.preventDefault();
-    let all = (await storeGet('club-events')) || [];
-    if (editEventId) {
-      all = all.map((ev) => (ev.id === editEventId ? { ...ev, ...eventForm } : ev));
-    } else {
-      all.push({ id: uid(), ...eventForm, createdAt: new Date().toISOString() });
-    }
-    const ok = await storeSet('club-events', all);
-    if (ok) {
+    try {
+      await api.saveEvent(editEventId ? { id: editEventId, ...eventForm } : eventForm);
       toast(editEventId ? 'Event updated' : "Event posted! It's live on the public page");
       setEditEventId(null);
       setEventForm({ name: '', date: '', tag: '', description: '' });
       reload();
+    } catch (err) {
+      toast(err.message, 'err');
     }
   };
 
   const deleteEvent = async (id) => {
-    let all = (await storeGet('club-events')) || [];
-    all = all.filter((ev) => ev.id !== id);
-    await storeSet('club-events', all);
-    reload();
+    try {
+      await api.deleteEvent(id);
+      reload();
+    } catch (err) {
+      toast(err.message, 'err');
+    }
   };
 
   const nameFor = (username) => (members.find((m) => m.username === username) || {}).name || username;
@@ -453,22 +466,43 @@ export default function Cabinet() {
   const toast = useToast();
   const [user, setUser] = useState(null);
   const [needsPassword, setNeedsPassword] = useState(null);
-  const [members, setMembers] = useState(null);
+  const [cabinetExists, setCabinetExists] = useState(null);
+  const [members, setMembers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [events, setEvents] = useState([]);
 
+  /* Only an authenticated officer can pull cabinet data — the server decides
+     what this account is allowed to see (officers get only their own tasks). */
   const reload = useCallback(async () => {
-    const [m, t, e] = await Promise.all([
-      storeGet('club-members'),
-      storeGet('club-tasks'),
-      storeGet('club-events'),
-    ]);
-    setMembers(m || []);
-    setTasks(t || []);
-    setEvents(e || []);
+    try {
+      const data = await api.cabinetState();
+      setUser(data.me);
+      setMembers(data.members || []);
+      setTasks(data.tasks || []);
+      setEvents(data.events || []);
+      return true;
+    } catch {
+      return false;
+    }
   }, []);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    let live = true;
+    api.publicData()
+      .then((data) => { if (live) setCabinetExists(!!data.cabinetExists); })
+      .catch(() => { if (live) setCabinetExists(false); });
+    // Resume a signed-in officer session if the tab still holds a valid token.
+    reload();
+    return () => { live = false; };
+  }, [reload]);
+
+  const signOut = () => {
+    api.cabinetLogout();
+    setUser(null);
+    setMembers([]);
+    setTasks([]);
+    setEvents([]);
+  };
 
   const isPresident = user?.role === 'president';
 
@@ -482,19 +516,19 @@ export default function Cabinet() {
             <p>Sign in to see tasks assigned to you.</p>
           </Reveal>
           <Reveal delay={0.25}>
-            <p className="mono" style={{ fontSize: '0.68rem', color: hasFirebase ? 'var(--green)' : 'var(--amber)', marginTop: 14 }}>
-              {hasFirebase ? '● SYNCED — data is live across every device via Firebase.' : '● LOCAL — data is saved to this browser only.'}
+            <p className="mono" style={{ fontSize: '0.68rem', color: 'var(--green)', marginTop: 14 }}>
+              ● SECURED — accounts are hashed and every change is authorised on the server.
             </p>
           </Reveal>
         </div>
 
-        {members === null ? (
+        {cabinetExists === null && !user ? (
           <div className="empty">establishing uplink…</div>
         ) : needsPassword ? (
           <SetPassword member={needsPassword} onDone={(m) => { setNeedsPassword(null); setUser(m); reload(); }} />
         ) : !user ? (
-          members.length === 0 ? (
-            <Reveal><Bootstrap onDone={(m) => { setUser(m); reload(); }} /></Reveal>
+          !cabinetExists ? (
+            <Reveal><Bootstrap onDone={(m) => { setUser(m); setCabinetExists(true); reload(); }} /></Reveal>
           ) : (
             <Reveal><Login onLogin={(m) => { setUser(m); toast(`Welcome back, ${m.name.split(' ')[0]}`); reload(); }} onNeedsPassword={setNeedsPassword} /></Reveal>
           )
@@ -512,7 +546,7 @@ export default function Cabinet() {
                   {isPresident ? 'Assign tasks and manage your cabinet below.' : "Here's what's on your plate."}
                 </p>
               </div>
-              <button className="btn ghost sm" onClick={() => setUser(null)}>Sign out</button>
+              <button className="btn ghost sm" onClick={signOut}>Sign out</button>
             </div>
             {isPresident
               ? <PresidentDash user={user} members={members} tasks={tasks} events={events} reload={reload} />

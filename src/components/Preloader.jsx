@@ -85,7 +85,7 @@ export default function Preloader({ onDone }) {
             ))}
           </div>
 
-          <div className="eyebrow">THE_STACK · BOOT SEQUENCE</div>
+          <div className="eyebrow">WHITNEY CS CLUB · BOOT SEQUENCE</div>
         </motion.div>
       )}
     </AnimatePresence>

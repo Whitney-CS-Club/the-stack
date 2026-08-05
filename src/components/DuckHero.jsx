@@ -226,7 +226,7 @@ export default function DuckHero({ booted }) {
         <motion.div style={{ position: 'absolute', inset: '-3%', x: parX, y: parY }}>
           <motion.img
             src="/duck/intact-2000.webp"
-            alt="THE_STACK debugging duck — assembled"
+            alt="Whitney CS Club debugging duck — assembled"
             className="hero-img"
             style={{ opacity: intactOpacity, scale: intactScale, x: jitterX }}
             draggable="false"
@@ -238,7 +238,7 @@ export default function DuckHero({ booted }) {
             style={{ opacity: ghostOpacity, scale: intactScale, x: ghostRedX }} draggable="false" />
           <motion.img
             src="/duck/exploded-2000.webp"
-            alt="THE_STACK debugging duck — exploded engineering view"
+            alt="Whitney CS Club debugging duck — exploded engineering view"
             className="hero-img"
             style={{ opacity: explodedOpacity, scale: explodedScale, x: jitterX }}
             draggable="false"
@@ -274,7 +274,7 @@ export default function DuckHero({ booted }) {
             animate={booted ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: 0.2, duration: 0.7 }}
           >
-            <span className="hud-label">THE_STACK · FIELD MANUAL 01</span>
+            <span className="hud-label">WHITNEY CS CLUB · FIELD MANUAL 01</span>
             <span className="hud-label dim">SUBJECT: RUBBER_DUCK MK.II</span>
           </motion.div>
           <motion.div

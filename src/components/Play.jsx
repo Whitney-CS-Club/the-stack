@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { storeGet, storeSet, uid, todayStr, yesterdayStr, mondayOf } from '../lib/storage.js';
-import { streakBadges, pointBadges, ALL_BADGE_DEFS, levelOf, xpPctOf } from '../lib/gameData.js';
+import { api } from '../lib/api.js';
+import { ALL_BADGE_DEFS, levelOf, xpPctOf } from '../lib/gameData.js';
 import { useToast } from './Toaster.jsx';
 import { Reveal, WordReveal } from './Reveal.jsx';
 import { Tilt } from './Interactive.jsx';
@@ -17,46 +17,42 @@ const GAME_DEFS = [
   { key: 'regex', icon: '🔍', title: 'Regex Rumble', desc: 'Match or no match? Decide before the timer runs out.', pts: '+8 / correct', Comp: RegexRumble },
 ];
 
-function checkNewBadges(player, extra = []) {
-  const before = new Set(player.badges || []);
-  const earned = new Set(before);
-  streakBadges.forEach((b) => { if ((player.streak || 0) >= b.days) earned.add(b.label); });
-  pointBadges.forEach((b) => { if ((player.points || 0) >= b.pts) earned.add(b.label); });
-  extra.forEach((b) => earned.add(b));
-  if ((player.gamesTried || []).length >= 7) earned.add('🎮 All-Rounder');
-  player.badges = Array.from(earned);
-  return player.badges.filter((b) => !before.has(b));
-}
-
 /* ---------- auth forms ---------- */
 function AuthGate({ onLogin }) {
   const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
 
   const login = async (e) => {
     e.preventDefault();
-    const username = e.target.user.value.trim().toLowerCase();
-    const password = e.target.pass.value;
-    const players = (await storeGet('club-players')) || [];
-    const match = players.find((p) => p.username.toLowerCase() === username && p.password === password);
-    if (match) onLogin(match);
-    else setMsg({ type: 'err', text: '> invalid username or password.' });
+    setBusy(true);
+    try {
+      const player = await api.playerLogin({
+        username: e.target.user.value.trim().toLowerCase(),
+        password: e.target.pass.value,
+      });
+      onLogin(player);
+    } catch (err) {
+      setMsg({ type: 'err', text: `> ${err.message.toLowerCase()}` });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const signup = async (e) => {
     e.preventDefault();
-    const name = e.target.name.value.trim();
-    const username = e.target.user.value.trim().toLowerCase();
-    const password = e.target.pass.value;
-    const players = (await storeGet('club-players')) || [];
-    if (players.some((p) => p.username.toLowerCase() === username)) {
-      setMsg({ type: 'err', text: '> that username is taken, try another.' });
-      return;
+    setBusy(true);
+    try {
+      const player = await api.playerSignup({
+        name: e.target.name.value.trim(),
+        username: e.target.user.value.trim().toLowerCase(),
+        password: e.target.pass.value,
+      });
+      onLogin(player, true);
+    } catch (err) {
+      setMsg({ type: 'err', text: `> ${err.message.toLowerCase()}` });
+    } finally {
+      setBusy(false);
     }
-    const newPlayer = { id: uid(), name, username, password, points: 0, weekPoints: 0, weekStart: mondayOf(new Date()), streak: 0, lastPlayedDate: null, badges: [], gamesTried: [], activity: [] };
-    players.push(newPlayer);
-    const ok = await storeSet('club-players', players);
-    if (ok) onLogin(newPlayer, true);
-    else setMsg({ type: 'err', text: '> signup failed, try again.' });
   };
 
   return (
@@ -69,19 +65,24 @@ function AuthGate({ onLogin }) {
           Any club member can make an account. No approval needed, that's only for games and the leaderboard.
         </p>
         <form onSubmit={login}>
-          <div className="field"><label>Username</label><input name="user" required /></div>
-          <div className="field"><label>Password</label><input name="pass" type="password" required /></div>
-          <button className="btn primary" style={{ width: '100%', justifyContent: 'center' }}>Sign in</button>
+          <div className="field"><label>Username</label><input name="user" autoComplete="username" required /></div>
+          <div className="field"><label>Password</label><input name="pass" type="password" autoComplete="current-password" required /></div>
+          <button className="btn primary" style={{ width: '100%', justifyContent: 'center' }} disabled={busy}>
+            {busy ? 'Checking…' : 'Sign in'}
+          </button>
         </form>
         <div className="mono" style={{ textAlign: 'center', margin: '18px 0', color: 'var(--muted)', fontSize: '0.72rem' }}>— OR —</div>
         <form onSubmit={signup}>
           <div className="field"><label>Name</label><input name="name" required /></div>
           <div className="form-grid">
-            <div className="field"><label>Username</label><input name="user" required /></div>
-            <div className="field"><label>Password</label><input name="pass" type="password" minLength={4} required /></div>
+            <div className="field"><label>Username</label><input name="user" autoComplete="username" required /></div>
+            <div className="field"><label>Password</label><input name="pass" type="password" autoComplete="new-password" minLength={6} required /></div>
           </div>
-          <button className="btn ghost brackets" style={{ width: '100%', justifyContent: 'center' }}><i /><i /><i /><i />Create account</button>
+          <button className="btn ghost brackets" style={{ width: '100%', justifyContent: 'center' }} disabled={busy}><i /><i /><i /><i />Create account</button>
         </form>
+        <p className="mono" style={{ fontSize: '0.6rem', color: 'var(--muted)', marginTop: 14, lineHeight: 1.6 }}>
+          6+ characters. Please don't reuse your school or email password.
+        </p>
         {msg && <div className={`form-msg ${msg.type}`}>{msg.text}</div>}
       </div>
     </Reveal>
@@ -94,7 +95,9 @@ function Leaderboard({ me, refreshKey }) {
   const [players, setPlayers] = useState([]);
 
   useEffect(() => {
-    storeGet('club-players').then((p) => setPlayers(p || []));
+    api.leaderboard()
+      .then((data) => setPlayers(data.leaderboard || []))
+      .catch(() => setPlayers([]));
   }, [refreshKey]);
 
   const key = tab === 'week' ? 'weekPoints' : 'points';
@@ -183,36 +186,24 @@ function PlayHub({ player, setPlayer, onLogout }) {
 
   const level = levelOf(player.points || 0);
   const xpPct = xpPctOf(player.points || 0);
-  const played = player.lastPlayedDate === todayStr();
+  const played = player.lastPlayedDate === new Date().toISOString().slice(0, 10);
   const r = 27;
   const circ = 2 * Math.PI * r;
 
+  /* The server is the scorekeeper: we report the result, it decides the points. */
   const award = useCallback(async (pts, label, gameKey, extraBadges = []) => {
-    const players = (await storeGet('club-players')) || [];
-    const meIdx = players.findIndex((p) => p.id === player.id);
-    if (meIdx === -1) return;
-    const me = { ...players[meIdx] };
-    const prevLevel = levelOf(me.points || 0);
-    me.points = (me.points || 0) + pts;
-    const mon = mondayOf(new Date());
-    if (me.weekStart !== mon) { me.weekStart = mon; me.weekPoints = 0; }
-    me.weekPoints = (me.weekPoints || 0) + pts;
-    const today = todayStr();
-    if (me.lastPlayedDate !== today) {
-      me.streak = me.lastPlayedDate === yesterdayStr() ? (me.streak || 0) + 1 : 1;
-      me.lastPlayedDate = today;
+    try {
+      const result = await api.award(gameKey, pts, extraBadges);
+      setPlayer(result.player);
+      setRefreshKey((k) => k + 1);
+      if (result.points > 0) toast(`+${result.points} pts — ${label}`);
+      else toast(`Daily limit reached for ${label}`, 'err');
+      if (result.leveledTo) toast(`🎉 Level ${result.leveledTo} reached!`);
+      (result.newBadges || []).forEach((b) => toast(`Badge unlocked: ${b}`));
+    } catch (err) {
+      toast(err.message, 'err');
     }
-    me.gamesTried = Array.from(new Set([...(me.gamesTried || []), gameKey]));
-    me.activity = [{ ts: new Date().toISOString(), label, pts }, ...(me.activity || [])].slice(0, 15);
-    const newBadges = checkNewBadges(me, extraBadges);
-    players[meIdx] = me;
-    await storeSet('club-players', players);
-    setPlayer(me);
-    setRefreshKey((k) => k + 1);
-    toast(`+${pts} pts — ${label}`);
-    if (levelOf(me.points) > prevLevel) toast(`🎉 Level ${levelOf(me.points)} reached!`);
-    newBadges.forEach((b) => toast(`Badge unlocked: ${b}`));
-  }, [player.id, setPlayer, toast]);
+  }, [setPlayer, toast]);
 
   const ActiveComp = activeGame ? GAME_DEFS.find((g) => g.key === activeGame)?.Comp : null;
 
@@ -340,6 +331,18 @@ export default function Play() {
   const toast = useToast();
   const [player, setPlayer] = useState(null);
 
+  /* Resume an existing session on load — the token is validated server-side. */
+  useEffect(() => {
+    let live = true;
+    api.playerMe().then((p) => { if (live && p) setPlayer(p); });
+    return () => { live = false; };
+  }, []);
+
+  const logout = () => {
+    api.playerLogout();
+    setPlayer(null);
+  };
+
   return (
     <section id="play" className="block" data-aurora="#3fd4ff">
       <div className="container">
@@ -352,9 +355,9 @@ export default function Play() {
         </div>
 
         {player ? (
-          <PlayHub player={player} setPlayer={setPlayer} onLogout={() => setPlayer(null)} />
+          <PlayHub player={player} setPlayer={setPlayer} onLogout={logout} />
         ) : (
-          <AuthGate onLogin={(p, isNew) => { setPlayer(p); if (isNew) toast(`Welcome to THE_STACK, ${p.name.split(' ')[0]}!`); }} />
+          <AuthGate onLogin={(p, isNew) => { setPlayer(p); if (isNew) toast(`Welcome to Whitney CS Club, ${p.name.split(' ')[0]}!`); }} />
         )}
       </div>
     </section>
