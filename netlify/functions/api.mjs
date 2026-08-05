@@ -9,7 +9,7 @@
 import {
   clearAttempts, hashPassword, initSecret, noteFailure, signToken, tooManyAttempts, verifyPassword, verifyToken,
 } from './lib/auth.mjs';
-import { KEYS, read, uid, write } from './lib/store.mjs';
+import { KEYS, read, storageStatus, uid, write } from './lib/store.mjs';
 import {
   BADGE_BY_GAME, GAME_RULES, levelOf, mondayOf, recomputeBadges, todayStr, yesterdayStr,
 } from './lib/rules.mjs';
@@ -87,6 +87,18 @@ export default async function handler(req) {
   try {
     // Shared signing key must be ready before any token is issued or checked.
     await initSecret();
+
+    /* Diagnostics: is the data store actually working? Booleans and an error
+       string only — no credentials, no data. */
+    if (path === 'health' && method === 'GET') {
+      const status = storageStatus();
+      let writable = false;
+      try {
+        await write('__healthcheck__', { at: new Date().toISOString() });
+        writable = true;
+      } catch { /* reported below */ }
+      return json(status.backend === 'unavailable' ? 503 : 200, { ...status, writable });
+    }
 
     /* ============ public ============ */
     if (path === 'public' && method === 'GET') {
