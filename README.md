@@ -91,3 +91,16 @@ Data lives in Netlify Blobs under the `club` store: `members`, `players`, `tasks
 
 Handing off to next year's cabinet: transfer this repo and the Netlify site to the club
 account, and keep `SESSION_SECRET` in Netlify (not in the repo).
+
+## License
+
+[MIT](LICENSE) © Whitney CS Club — you're welcome to fork this for your own club.
+
+A few notes on what's inside:
+
+- All dependencies (React, Vite, Framer Motion, Lenis, Netlify Blobs) are MIT licensed.
+- Fonts are Google Fonts, loaded from their CDN rather than bundled.
+- The duck renders in `public/duck/` were generated with Google Gemini. You may reuse
+  them, but AI-generated images have unsettled copyright status, so swap in your own
+  artwork if you need clear rights.
+- If you fork this, replace the club branding and set your own `SESSION_SECRET`.
