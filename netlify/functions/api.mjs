@@ -356,11 +356,41 @@ export default async function handler(req) {
           return ok({ members: members.map(publicMember) });
         }
 
+        // Change a member's role — this is the one place privileges can be
+        // granted, so it is president-only and can never leave the club with
+        // nobody in charge.
+        if (method === 'PATCH') {
+          const id = segments[2];
+          const idx = members.findIndex((m) => m.id === id);
+          if (idx === -1) return bad('Member not found.', 404);
+          if (body.role !== 'president' && body.role !== 'cabinet') return bad('Role must be president or cabinet.');
+
+          const presidentCount = members.filter((m) => m.role === 'president').length;
+          if (body.role === 'cabinet' && members[idx].role === 'president' && presidentCount <= 1) {
+            return bad('There must always be at least one president.');
+          }
+
+          members[idx] = {
+            ...members[idx],
+            role: body.role,
+            position: body.role === 'president' && members[idx].position === 'Cabinet'
+              ? 'President'
+              : members[idx].position,
+          };
+          await write(KEYS.members, members);
+          return ok({ members: members.map(publicMember) });
+        }
+
         if (method === 'DELETE') {
           const id = segments[2];
           if (id === me.id) return bad('You cannot remove yourself.');
+          const target = members.find((m) => m.id === segments[2]);
+          if (!target) return bad('Member not found.', 404);
+          const presidentCount = members.filter((m) => m.role === 'president').length;
+          if (target.role === 'president' && presidentCount <= 1) {
+            return bad('There must always be at least one president.');
+          }
           const next = members.filter((m) => m.id !== id);
-          if (next.length === members.length) return bad('Member not found.', 404);
           await write(KEYS.members, next);
           return ok({ members: next.map(publicMember) });
         }

@@ -96,6 +96,8 @@ export const api = {
 
   addMember: (payload) => request('cabinet/members', { method: 'POST', token: cabinetToken(), body: payload }),
   removeMember: (id) => request(`cabinet/members/${id}`, { method: 'DELETE', token: cabinetToken() }),
+  setMemberRole: (id, role) =>
+    request(`cabinet/members/${id}`, { method: 'PATCH', token: cabinetToken(), body: { role } }),
 
   createTask: (payload) => request('cabinet/tasks', { method: 'POST', token: cabinetToken(), body: payload }),
   setTaskStatus: (id, status) =>

@@ -245,6 +245,21 @@ function PresidentDash({ user, members, tasks, events, reload }) {
     }
   };
 
+  const setMemberRole = async (m, role) => {
+    const promoting = role === 'president';
+    const question = promoting
+      ? `Make ${m.name} a president? They will be able to assign tasks, manage the roster and post events — the same powers you have.`
+      : `Change ${m.name} back to an officer? They will lose president powers.`;
+    if (!window.confirm(question)) return;
+    try {
+      await api.setMemberRole(m.id, role);
+      toast(promoting ? `${m.name} is now a president` : `${m.name} is now an officer`);
+      reload();
+    } catch (err) {
+      toast(err.message, 'err');
+    }
+  };
+
   const deleteTask = async (id) => {
     try {
       await api.deleteTask(id);
@@ -366,7 +381,22 @@ function PresidentDash({ user, members, tasks, events, reload }) {
                   <td className="mono" style={{ color: m.mustSetPassword ? 'var(--amber)' : 'var(--green)', fontSize: '0.72rem' }}>
                     {m.mustSetPassword ? 'awaiting first login' : m.role === 'president' ? 'president' : 'active'}
                   </td>
-                  <td>{m.id !== user.id && <button className="btn danger sm" onClick={() => removeMember(m.id)}>remove</button>}</td>
+                  <td style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {m.role === 'president' ? (
+                      m.id !== user.id && (
+                        <button className="btn ghost sm" onClick={() => setMemberRole(m, 'cabinet')}>
+                          make officer
+                        </button>
+                      )
+                    ) : (
+                      <button className="btn ghost sm" onClick={() => setMemberRole(m, 'president')}>
+                        make president
+                      </button>
+                    )}
+                    {m.id !== user.id && (
+                      <button className="btn danger sm" onClick={() => removeMember(m.id)}>remove</button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

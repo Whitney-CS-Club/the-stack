@@ -110,6 +110,44 @@ check('officer CANNOT remove members', r.status === 403);
 r = await call('cabinet/state', { token: playerToken });
 check('arcade player token CANNOT read cabinet data', r.status === 401);
 
+console.log('\n=== ROLE PROMOTION (privilege escalation surface) ===');
+r = await call('cabinet/members', { method: 'POST', token: presToken, body: { name: 'Srin Example', position: 'Officer', username: 'srin' } });
+check('president can add a second officer', r.status === 200);
+const srinId = r.data.members.find((m) => m.username === 'srin').id;
+
+r = await call(`cabinet/members/${srinId}`, { method: 'PATCH', token: officerToken, body: { role: 'president' } });
+check('officer CANNOT promote themselves or others', r.status === 403);
+
+r = await call(`cabinet/members/${srinId}`, { method: 'PATCH', body: { role: 'president' } });
+check('anonymous CANNOT promote anyone', r.status === 401);
+
+r = await call(`cabinet/members/${srinId}`, { method: 'PATCH', token: presToken, body: { role: 'overlord' } });
+check('invalid role rejected', r.status === 400);
+
+r = await call(`cabinet/members/${srinId}`, { method: 'PATCH', token: presToken, body: { role: 'president' } });
+check('president can promote an officer to president', r.status === 200);
+check('promotion is reflected in the roster', r.data.members.find((m) => m.username === 'srin').role === 'president');
+
+const srinLogin = await call('cabinet/login', { method: 'POST', body: { username: 'srin', password: '1234' } });
+r = await call('cabinet/members', { method: 'POST', token: srinLogin.data.token, body: { name: 'Added By Srin', position: 'Officer', username: 'addedbysrin' } });
+check('newly promoted president has real president powers', r.status === 200);
+
+// Demote everyone down to the last president and confirm the club can't be orphaned.
+const presId = (await call('cabinet/state', { token: presToken })).data.members.find((m) => m.role === 'president' && m.username !== 'srin').id;
+r = await call(`cabinet/members/${presId}`, { method: 'PATCH', token: srinLogin.data.token, body: { role: 'cabinet' } });
+check('a president can be demoted while another remains', r.status === 200);
+
+const lastPres = (await call('cabinet/state', { token: srinLogin.data.token })).data.members.find((m) => m.role === 'president');
+r = await call(`cabinet/members/${lastPres.id}`, { method: 'PATCH', token: srinLogin.data.token, body: { role: 'cabinet' } });
+check('CANNOT demote the last president', r.status === 400);
+
+r = await call(`cabinet/members/${lastPres.id}`, { method: 'DELETE', token: srinLogin.data.token });
+check('CANNOT delete the last president', r.status === 400);
+
+// Restore the original president so the remaining tests run against a normal club.
+r = await call(`cabinet/members/${presId}`, { method: 'PATCH', token: srinLogin.data.token, body: { role: 'president' } });
+check('demotion is reversible', r.status === 200);
+
 console.log('\n=== TASK OWNERSHIP ===');
 r = await call('cabinet/tasks', { method: 'POST', token: presToken, body: { title: 'Book the room', assignedTo: 'aturing', dueDate: '2026-07-01', priority: 'high' } });
 check('president assigns a task', r.status === 200);
