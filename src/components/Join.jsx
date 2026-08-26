@@ -4,7 +4,7 @@ import { useToast } from './Toaster.jsx';
 import { Reveal, WordReveal } from './Reveal.jsx';
 
 const INTERESTS = ['Web Dev', 'AI / ML', 'Competitive Programming', 'Cybersecurity', 'Game Dev', 'Open Source'];
-const YEARS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Grad Student'];
+const YEARS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Middle School'];
 
 export default function Join() {
   const toast = useToast();
@@ -57,7 +57,7 @@ export default function Join() {
               </div>
               <div className="field">
                 <label htmlFor="j-email">Email</label>
-                <input id="j-email" name="email" type="email" required placeholder="you@university.edu" />
+                <input id="j-email" name="email" type="email" required placeholder="you@myabcusd.org" />
               </div>
             </div>
             <div className="field">
